@@ -48,46 +48,64 @@ async def posting_text(message: Message, state: FSMContext):
 async def posting_photo(message: Message, state: FSMContext):
     global Api_Vk
     file_id = message.photo[-1].file_id
-    await state.update_data(photo = file_id)
+    await state.update_data(photo = f'{file_id}')
     await bot.download(file=file_id, destination=f'content/{file_id}.jpg')
     
     data = await state.get_data()
     Api_Vk = VKapi(data=data)
     await state.clear()
 
-
-    await message.answer('Желаете ли вы добавить дополнительные пункты к посту(хэштеги, доступ, доступ к коментариям)', reply_markup=kb.add_settings)
+    await message.answer('Желаете ли вы добавить дополнительные пункты к посту?\nВыберите настройку которую хотите добавить или запостите запись', reply_markup=kb.add_settings_choise)
     
 
     
-
-@dp.callback_query(F.data == 'add_settings')
-async def add_settings_fn(callback: CallbackQuery):
-    await callback.message.answer('Выберите настройку которую хотите добавить', reply_markup=kb.add_settings_choise)
 
 @dp.message(F.text)
 async def add_settings_choise(message: Message):
     if message.text == 'Доступ к записи':
         await message.reply('Желаете ли вы ограничить доступ к записи', reply_markup=kb.friends_only)
     elif message.text == 'Закрыть комментарии':
-        pass
+        await message.reply('Желаете ли вы закрыть комментарии', reply_markup=kb.comments)
+    elif message.text == 'Опубликовать':
+        await message.reply('Публикация', reply_markup=kb.rmk)
+        answer = Api_Vk.work_api()
+        await message.reply(text=answer, reply_markup=kb.rmk)
+
+    elif message.text == 'Инфо о посте':
+        data = Api_Vk.get_data()
+        yes = 'да'
+        no = 'нет'
+        await message.reply(text = f'Текст: {data["post_text"]} \nфото: {data["photo"]} \nТолько для друзей: {yes if data["friends_only"]==True else no} \nЗакрыть комментарии: {yes if data["close_comments"]==True else no}')
+
+    elif message.text =='Отменить действия':
+        await message.reply('Все действия успешно удалены, нажмите /go, что бы начать заново', reply_markup=kb.start_keyboard)
+        Api_Vk.__del__
     else:
-        pass
+        await message.reply('Я вас не понимаю', reply_markup=kb.comments)
 
 @dp.callback_query(F.data=='friends_only_yes')
 async def friends_only_yes(callback: CallbackQuery):
     Api_Vk.add_settings({'friends_only':True})
-    print(Api_Vk.__dict__)
-    print(Api_Vk._Api_VK__params)
+    await callback.message.answer('Параметр "Только для друзей" включен', reply_markup=kb.add_settings_choise)
+
 @dp.callback_query(F.data=='friends_only_no')
 async def friends_only_no(callback: CallbackQuery):
     Api_Vk.add_settings({'friends_only':False})
-    await callback.message.answer('re,g')
+    await callback.message.answer('Параметр "Только для друзей" выключен')
+
+@dp.callback_query(F.data=='comments_yes')
+async def comments_yes(callback: CallbackQuery):
+    Api_Vk.add_settings({'close_comments':True})
+    await callback.message.answer('Параметр "закрыть комментарии" включен')
+
+@dp.callback_query(F.data=='comments_no')
+async def comments_no(callback: CallbackQuery):
+    Api_Vk.add_settings({'close_comments':False})
+    await callback.message.answer('Параметр "закрыть комментарии" выключен')
+
 
 
     
-
-
 
 
 
