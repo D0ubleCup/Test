@@ -23,7 +23,7 @@ async def cmd_start(message: Message):
 
 @dp.message(F.text == '/go')
 async def go_work(message: Message, state: FSMContext):
-    await message.answer(text='Для начала выберите соц. сеть', reply_markup=kb.choise_social_network)
+    await message.answer('Для начала выберите соц. сеть', reply_markup=kb.choise_social_network)
     await state.set_state(Data.network)
 
 @dp.message(Data.network, F.text.casefold().in_(['вк'])) 
@@ -39,49 +39,60 @@ async def incorent_network(message: Message, state: FSMContext):
 
 @dp.message(Data.post_text)
 async def posting_text(message: Message, state: FSMContext):
-    await state.update_data(post_text = message.text)
-    await message.answer('Хорошо, отправьте фотографию для поста')
-    await state.set_state(Data.photo)
-    
+    if message.text:
+        if len(message.text) < 15895:
+            await state.update_data(post_text = message.text)
+            await message.answer('Хорошо, отправьте фотографию для поста')
+            await state.set_state(Data.photo)
+        else:
+            await message.answer('Текст слишком большой, пишлите текст покороче')
+    else:
+        await message.answer('Пришлите текст для поста!')
+        
 
 @dp.message(Data.photo)
 async def posting_photo(message: Message, state: FSMContext):
-    global Api_Vk
-    file_id = message.photo[-1].file_id
-    await state.update_data(photo = f'{file_id}')
-    await bot.download(file=file_id, destination=f'content/{file_id}.jpg')
-    
-    data = await state.get_data()
-    Api_Vk = VKapi(data=data)
-    await state.clear()
+    if message.photo:
+        global Api_Vk
+        file_id = message.photo[-1].file_id
+        await state.update_data(photo = f'{file_id}')
+        await bot.download(file=file_id, destination=f'content/{file_id}.jpg')
 
-    await message.answer('Желаете ли вы добавить дополнительные пункты к посту?\nВыберите настройку которую хотите добавить или запостите запись', reply_markup=kb.add_settings_choise)
+        data = await state.get_data()
+        Api_Vk = VKapi(data=data)
+        await state.clear()
+
+        await message.answer('Желаете ли вы добавить дополнительные пункты к посту?\nВыберите настройку которую хотите добавить или запостите запись', reply_markup=kb.add_settings_choise)
+    else: 
+        await message.answer('Пришлите фото для поста!')
     
 
     
 
 @dp.message(F.text)
 async def add_settings_choise(message: Message):
-    if message.text == 'Доступ к записи':
-        await message.reply('Желаете ли вы ограничить доступ к записи', reply_markup=kb.friends_only)
-    elif message.text == 'Закрыть комментарии':
-        await message.reply('Желаете ли вы закрыть комментарии', reply_markup=kb.comments)
-    elif message.text == 'Опубликовать':
-        await message.reply('Публикация', reply_markup=kb.rmk)
-        answer = Api_Vk.work_api()
-        await message.reply(text=answer, reply_markup=kb.rmk)
+    if Api_Vk.ready_post():
+        if message.text == 'Доступ к записи':
+            await message.reply('Желаете ли вы ограничить доступ к записи', reply_markup=kb.friends_only)
+        elif message.text == 'Закрыть комментарии':
+            await message.reply('Желаете ли вы закрыть комментарии', reply_markup=kb.comments)
+        elif message.text == 'Опубликовать':
+            await message.reply('Публикация', reply_markup=kb.rmk)
+            answer = Api_Vk.work_api()
+            Api_Vk.__del__()
+            await message.reply(text=answer, reply_markup=kb.rmk)
 
-    elif message.text == 'Инфо о посте':
-        data = Api_Vk.get_data()
-        yes = 'да'
-        no = 'нет'
-        await message.reply(text = f'Текст: {data["post_text"]} \nфото: {data["photo"]} \nТолько для друзей: {yes if data["friends_only"]==True else no} \nЗакрыть комментарии: {yes if data["close_comments"]==True else no}')
+        elif message.text == 'Инфо о посте':
+            data = Api_Vk.get_data()
+            yes = 'да'
+            no = 'нет'
+            await message.reply(text = f'Текст: {data["message"]} \nфото: {data["attachments"]} \nТолько для друзей: {yes if data["friends_only"]==True else no} \nЗакрыть комментарии: {yes if data["close_comments"]==True else no}')
 
-    elif message.text =='Отменить действия':
-        await message.reply('Все действия успешно удалены, нажмите /go, что бы начать заново', reply_markup=kb.start_keyboard)
-        Api_Vk.__del__
+        elif message.text =='Отменить действия':
+            await message.reply('Все действия успешно удалены, нажмите /go, что бы начать заново', reply_markup=kb.start_keyboard)
+            Api_Vk.__del__()
     else:
-        await message.reply('Я вас не понимаю', reply_markup=kb.comments)
+        await message.reply('Я вас не понимаю')
 
 @dp.callback_query(F.data=='friends_only_yes')
 async def friends_only_yes(callback: CallbackQuery):
